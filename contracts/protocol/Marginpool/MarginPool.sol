@@ -49,13 +49,13 @@ contract MarginPool is VersionedInitializable, IMarginPool, MarginPoolStorage {
 
     //main configuration parameters
     uint256 public constant MAX_NUMBER_RESERVES = 128;
-    uint256 public constant MARGINPOOL_REVISION = 0x2;
+    uint256 public constant MARGINPOOL_REVISION = 0x6;
     IUniswapV2Router02 public uniswaper;
     IUniswapV2Router02 public sushiSwaper;
     address public wethAddress;
     uint8 borrowFee = 0;
-    uint8 withdrawFee = 10;
-    address public constant inchor = 0x11111112542D85B3EF69AE05771c2dCCff4fAa26;
+    uint8 withdrawFee = 30;
+    address public constant inchor = 0x1111111254fb6c44bAC0beD2854e76F90643097d;
     address public collateralManager;
 
     modifier whenNotPaused() {
@@ -456,11 +456,11 @@ contract MarginPool is VersionedInitializable, IMarginPool, MarginPoolStorage {
     function repay(address asset, uint256 amount, address onBehalfOf) external override whenNotPaused returns (uint256) {
         DataTypes.ReserveData storage reserve = _reserves[asset];
 
-        uint256 variableDebt = Helpers.getUserCurrentDebt(onBehalfOf, reserve);
+        uint256 variableDebt = Helpers.getUserCurrentDebt(msg.sender, reserve);
         address xToken = reserve.xTokenAddress;
         uint256 userBalance = IERC20(xToken).balanceOf(msg.sender);
 
-        ValidationLogic.validateRepay(reserve, amount, onBehalfOf, variableDebt, userBalance);
+        ValidationLogic.validateRepay(reserve, amount, msg.sender, variableDebt, userBalance);
 
         uint256 paybackAmount = variableDebt;
 
@@ -470,12 +470,12 @@ contract MarginPool is VersionedInitializable, IMarginPool, MarginPoolStorage {
 
         reserve.updateState();
 
-        IVariableDebtToken(reserve.variableDebtTokenAddress).burn(onBehalfOf, paybackAmount, reserve.variableBorrowIndex);
+        IVariableDebtToken(reserve.variableDebtTokenAddress).burn(msg.sender, paybackAmount, reserve.variableBorrowIndex);
 
         reserve.updateInterestRates(asset, xToken, 0, 0);
 
         if (variableDebt.sub(paybackAmount) == 0) {
-            _usersConfig[onBehalfOf].setBorrowing(reserve.id, false);
+            _usersConfig[msg.sender].setBorrowing(reserve.id, false);
         }
 
         if (paybackAmount == userBalance) {
@@ -485,7 +485,7 @@ contract MarginPool is VersionedInitializable, IMarginPool, MarginPoolStorage {
 
         IXToken(xToken).burn(msg.sender, xToken, paybackAmount, reserve.liquidityIndex);
 
-        emit Repay(asset, onBehalfOf, msg.sender, paybackAmount);
+        emit Repay(asset, msg.sender, msg.sender, paybackAmount);
 
         return paybackAmount;
     }
